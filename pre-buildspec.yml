@@ -21,7 +21,6 @@ phases:
     commands:
       - "helm version"
       - "mkdir -p ~/.kube/"
-      - "aws eks create-access-entry --cluster-name $EKS_CLUSTER_NAME --principal-arn $EKS_CODEBUILD_ROLE_ARN --type STANDARD --kubernetes-groups masters --region $AWS_DEFAULT_REGION"
       - "aws eks --region $AWS_DEFAULT_REGION update-kubeconfig --name $EKS_CLUSTER_NAME --role-arn $EKS_CODEBUILD_ROLE_ARN"
       - "chmod 0600 ~/.kube/config"
       - "aws sts get-caller-identity"
