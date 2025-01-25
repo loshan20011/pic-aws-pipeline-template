@@ -5,7 +5,7 @@ phases:
     commands:
       - yum update -y
       - echo "yum update done"
-      - yum install -y git python3 python3-pip
+      - yum install -y git python3 python3-pip jq
       - echo "yum install done"
       - pip install awscli
       - curl -o aws-iam-authenticator https://s3.us-west-2.amazonaws.com/amazon-eks/1.21.2/2021-07-05/bin/linux/amd64/aws-iam-authenticator
@@ -19,13 +19,38 @@ phases:
 
   pre_build: # Configure AWS CLI, EKS access, and check readiness
     commands:
-      - "helm version"
-      - "mkdir -p ~/.kube/"
-      - "aws eks --region $AWS_DEFAULT_REGION update-kubeconfig --name $EKS_CLUSTER_NAME --role-arn $EKS_CODEBUILD_ROLE_ARN --kubeconfig /root/.kube/config"
-      - "chmod 0600 ~/.kube/config"
-      - "aws sts get-caller-identity"
-      - kubectl config get-contexts
+      - echo "Checking Helm Version"
+      - helm version
+      - mkdir -p ~/.kube/
+      
+      # Update kubeconfig with proper IAM authentication
+      - echo "Updating kubeconfig for EKS cluster..."
+      - aws eks --region $AWS_DEFAULT_REGION update-kubeconfig --name $EKS_CLUSTER_NAME --role-arn $EKS_CODEBUILD_ROLE_ARN --kubeconfig /root/.kube/config
+      - chmod 0600 ~/.kube/config
+      
+      # Verify AWS authentication
+      - echo "Checking AWS credentials..."
+      - aws sts get-caller-identity
+
+      # Verify kubeconfig context
+      - echo "Checking Kubernetes contexts..."
+      - kubectl config get-contexts --kubeconfig /root/.kube/config
+
+      # Test authentication with EKS using AWS IAM Authenticator
+      - echo "Verifying EKS authentication..."
+      - aws eks get-token --cluster-name $EKS_CLUSTER_NAME > /dev/null
+      - echo "Authentication successful!"
+
+  build: # Apply Kubernetes resources
+    commands:
       - echo "Applying Kubernetes resources..."
       - kubectl apply -f aws-logging/cloudwatch-logging.yaml --kubeconfig /root/.kube/config
-      - echo "Applying CRDs for LB Controller"
+
+      - echo "Applying CRDs for LB Controller..."
       - kubectl apply -f LB-Controller/crds.yaml --kubeconfig /root/.kube/config
+
+  post_build: # Final verification
+    commands:
+      - echo "Verifying deployed resources..."
+      - kubectl get pods -A --kubeconfig /root/.kube/config
+      - kubectl get services -A --kubeconfig /root/.kube/config
