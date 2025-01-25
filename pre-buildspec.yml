@@ -25,6 +25,6 @@ phases:
       - "chmod 0600 ~/.kube/config"
       - "aws sts get-caller-identity"
       - echo "Applying Kubernetes resources..."
-      - kubectl apply -f aws-logging/cloudwatch-logging.yaml --kubeconfig ~/.kube/config
+      - kubectl apply -f aws-logging/cloudwatch-logging.yaml --kubeconfig /root/.kube/config
       - echo "Applying CRDs for LB Controller"
-      - kubectl apply -f LB-Controller/crds.yaml --kubeconfig ~/.kube/config
+      - kubectl apply -f LB-Controller/crds.yaml --kubeconfig /root/.kube/config
