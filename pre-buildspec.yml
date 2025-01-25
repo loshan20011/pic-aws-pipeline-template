@@ -1,55 +1,42 @@
 version: 0.2
 
 phases:
-  install: # Install AWS CLI, kubectl, and Helm3
+  install:
     commands:
       - yum update -y
-      - echo "yum update done"
       - yum install -y git python3 python3-pip jq
-      - echo "yum install done"
       - pip install awscli
       - curl -o aws-iam-authenticator https://s3.us-west-2.amazonaws.com/amazon-eks/1.21.2/2021-07-05/bin/linux/amd64/aws-iam-authenticator
-      - chmod +x ./aws-iam-authenticator
-      - mkdir -p $HOME/bin && cp ./aws-iam-authenticator $HOME/bin/aws-iam-authenticator && export PATH=$PATH:$HOME/bin
+      - chmod +x aws-iam-authenticator
+      - mv aws-iam-authenticator /usr/local/bin/
       - curl -LO https://storage.googleapis.com/kubernetes-release/release/v1.21.0/bin/linux/amd64/kubectl
       - chmod +x kubectl
-      - mv ./kubectl /usr/local/bin/kubectl
+      - mv kubectl /usr/local/bin/
       - curl -sSL https://raw.githubusercontent.com/helm/helm/master/scripts/get-helm-3 | bash
-      - helm repo add stable https://charts.helm.sh/stable && helm repo update
 
-  pre_build: # Configure AWS CLI, EKS access, and check readiness
+  pre_build:
     commands:
-      - echo "Checking Helm Version"
-      - helm version
-      - mkdir -p ~/.kube/
-      
-      # Update kubeconfig with proper IAM authentication
-      - echo "Updating kubeconfig for EKS cluster..."
+      - echo "Updating kubeconfig..."
       - aws eks --region $AWS_DEFAULT_REGION update-kubeconfig --name $EKS_CLUSTER_NAME --role-arn $EKS_CODEBUILD_ROLE_ARN --kubeconfig /root/.kube/config
       - chmod 0600 ~/.kube/config
-      
-      # Verify AWS authentication
       - echo "Checking AWS credentials..."
       - aws sts get-caller-identity
-
-      # Verify kubeconfig context
       - echo "Checking Kubernetes contexts..."
       - kubectl config get-contexts --kubeconfig /root/.kube/config
-
-      # Test authentication with EKS using AWS IAM Authenticator
       - echo "Verifying EKS authentication..."
-      - aws eks get-token --cluster-name $EKS_CLUSTER_NAME > /dev/null
+      - export KUBERNETES_EXEC_INFO=$(aws eks get-token --cluster-name $EKS_CLUSTER_NAME)
       - echo "Authentication successful!"
+      - echo "Checking Kubernetes access..."
+      - kubectl auth can-i '*' '*' --kubeconfig /root/.kube/config
 
-  build: # Apply Kubernetes resources
+  build:
     commands:
       - echo "Applying Kubernetes resources..."
       - kubectl apply -f aws-logging/cloudwatch-logging.yaml --kubeconfig /root/.kube/config
-
       - echo "Applying CRDs for LB Controller..."
       - kubectl apply -f LB-Controller/crds.yaml --kubeconfig /root/.kube/config
 
-  post_build: # Final verification
+  post_build:
     commands:
       - echo "Verifying deployed resources..."
       - kubectl get pods -A --kubeconfig /root/.kube/config
