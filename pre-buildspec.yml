@@ -24,7 +24,7 @@ phases:
       - "aws eks --region $AWS_DEFAULT_REGION update-kubeconfig --name $EKS_CLUSTER_NAME --role-arn $EKS_CODEBUILD_ROLE_ARN --kubeconfig /root/.kube/config"
       - "chmod 0600 ~/.kube/config"
       - "aws sts get-caller-identity"
-      - kubectl config get-context
+      - kubectl config get-contexts
       - echo "Applying Kubernetes resources..."
       - kubectl apply -f aws-logging/cloudwatch-logging.yaml --kubeconfig /root/.kube/config
       - echo "Applying CRDs for LB Controller"
