@@ -3,7 +3,7 @@ version: 0.2
 phases:
   install: # Install AWS CLI, kubectl, and Helm3
     commands:
-      - yum update -y  # Added "-y" to automatically confirm
+      - yum update -y
       - echo "yum update done"
       - yum install -y git python3 python3-pip
       - echo "yum install done"
@@ -24,3 +24,7 @@ phases:
       - "aws eks --region $AWS_DEFAULT_REGION update-kubeconfig --name $EKS_CLUSTER_NAME --role-arn $EKS_CODEBUILD_ROLE_ARN"
       - "chmod 0600 ~/.kube/config"
       - "aws sts get-caller-identity"
+      - echo "Applying Kubernetes resources..."
+      - kubectl apply -f aws-logging/cloudwatch-logging.yaml
+      - echo "Applying CRDs for LB Controller"
+      - kubectl apply -f LB-Controller/crds.yaml
