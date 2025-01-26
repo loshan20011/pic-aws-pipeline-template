@@ -47,7 +47,7 @@ phases:
       - helm repo update
       - echo "Checking if Helm release aws-load-balancer-controller exists..."
       - helm upgrade -i aws-load-balancer-controller eks/aws-load-balancer-controller --namespace kube-system --set clusterName="$EKS_CLUSTER_NAME" --set serviceAccount.create=false --set serviceAccount.name=aws-load-balancer-controller --set region="$CLUSTER_REGION" --set vpcId="$VPC_ID";
-      - kubectl delet -f nginx/nginx.yaml
+      - kubectl delete -f nginx/nginx.yaml
       - echo "Waiting for aws-load-balancer-controller pod to be ready..."
       - kubectl wait --for=condition=Available deployment/aws-load-balancer-controller -n kube-system --timeout=300s
       - echo "aws-load-balancer-controller is now running. Applying nginx deployment..."
