@@ -3,65 +3,86 @@ version: 0.2
 phases:
   install:
     commands:
+      - set -e  # Exit script on error
       - yum update -y
-      - yum install -y git python3 python3-pip jq
+      - yum install -y git python3 python3-pip jq dnf
       - pip install awscli
       - curl -o aws-iam-authenticator https://s3.us-west-2.amazonaws.com/amazon-eks/1.21.2/2021-07-05/bin/linux/amd64/aws-iam-authenticator
-      - chmod +x aws-iam-authenticator
-      - mv aws-iam-authenticator /usr/local/bin/
+      - chmod +x aws-iam-authenticator && mv aws-iam-authenticator /usr/local/bin/
       - curl -LO https://storage.googleapis.com/kubernetes-release/release/v1.21.0/bin/linux/amd64/kubectl
-      - chmod +x kubectl
-      - mv kubectl /usr/local/bin/
+      - chmod +x kubectl && mv kubectl /usr/local/bin/
       - curl -sSL https://raw.githubusercontent.com/helm/helm/master/scripts/get-helm-3 | bash
+      - helm version
+      - kubectl version --client
 
   pre_build:
     commands:
       - echo "Updating kubeconfig..."
-      - aws eks --region $CLUSTER_REGION update-kubeconfig --name $EKS_CLUSTER_NAME --role-arn $EKS_CODEBUILD_ROLE_ARN --kubeconfig /root/.kube/config
+      - aws eks --region $CLUSTER_REGION update-kubeconfig --name $EKS_CLUSTER_NAME --role-arn $EKS_CODEBUILD_ROLE_ARN
+      - export KUBECONFIG=/root/.kube/config
       - chmod 0600 ~/.kube/config
       - echo "Checking AWS credentials..."
       - aws sts get-caller-identity
       - echo "Checking Kubernetes contexts..."
-      - kubectl config get-contexts --kubeconfig /root/.kube/config
+      - kubectl config get-contexts
       - echo "Verifying EKS authentication..."
       - export KUBERNETES_EXEC_INFO=$(aws eks get-token --cluster-name $EKS_CLUSTER_NAME)
       - echo "Authentication successful!"
       - echo "Checking Kubernetes access..."
-      - kubectl auth can-i '*' '*' --kubeconfig /root/.kube/config
+      - kubectl auth can-i '*' '*'
 
   build:
     commands:
       - echo "Applying Kubernetes resources..."
-      #- kubectl apply -f aws-logging/cloudwatch-logging.yaml --kubeconfig /root/.kube/config
-      #- echo "Applying CRDs for LB Controller..."
-      #- kubectl apply -f LB-Controller/crds.yaml --kubeconfig /root/.kube/config
-      #- echo "Checking if ServiceAccount aws-load-balancer-controller exists..."
-      #- SA_NAME=$(kubectl get serviceaccount aws-load-balancer-controller -n kube-system -o jsonpath='{.metadata.name}' 2>/dev/null || echo "")
-      #- if [ -z "$SA_NAME" ]; then
-      #    echo "ServiceAccount not found, creating...";
-      #    kubectl create serviceaccount aws-load-balancer-controller -n kube-system;
-      #  else
-      #    echo "ServiceAccount already exists, skipping creation.";
-      #  fi
-      #- kubectl annotate serviceaccount aws-load-balancer-controller eks.amazonaws.com/role-arn=$EKS_LB_ROLE_ARN -n kube-system --overwrite
-      #- helm repo add eks https://aws.github.io/eks-charts
-      #- helm repo update
-      #- echo "Checking if Helm release aws-load-balancer-controller exists..."
-      #- helm upgrade -i aws-load-balancer-controller eks/aws-load-balancer-controller --namespace kube-system --set clusterName="$EKS_CLUSTER_NAME" --set serviceAccount.create=false --set serviceAccount.name=aws-load-balancer-controller --set region="$CLUSTER_REGION" --set vpcId="$VPC_ID";
-      #- echo "Waiting for aws-load-balancer-controller pod to be ready..."
-      #- kubectl wait --for=condition=Available deployment/aws-load-balancer-controller -n kube-system --timeout=300s
-      #- echo "aws-load-balancer-controller is now running. Applying nginx deployment..."
-      #- kubectl apply -f nginx/nginx.yaml
+      - |
+        if ! kubectl get ns kube-system &>/dev/null; then
+          echo "Namespace kube-system does not exist. Creating..."
+          kubectl create ns kube-system
+        fi
+      - echo "Checking if ServiceAccount aws-load-balancer-controller exists..."
+      - |
+        if ! kubectl get serviceaccount aws-load-balancer-controller -n kube-system &>/dev/null; then
+          echo "ServiceAccount not found, creating..."
+          kubectl create serviceaccount aws-load-balancer-controller -n kube-system
+        else
+          echo "ServiceAccount already exists, skipping creation."
+        fi
+      - kubectl annotate serviceaccount aws-load-balancer-controller eks.amazonaws.com/role-arn=$EKS_LB_ROLE_ARN -n kube-system --overwrite
+      - helm repo add eks https://aws.github.io/eks-charts
+      - helm repo update
+      - echo "Checking if Helm release aws-load-balancer-controller exists..."
+      - |
+        if ! helm list -n kube-system | grep -q "aws-load-balancer-controller"; then
+          helm install aws-load-balancer-controller eks/aws-load-balancer-controller \
+            --namespace kube-system \
+            --set clusterName="$EKS_CLUSTER_NAME" \
+            --set serviceAccount.create=false \
+            --set serviceAccount.name=aws-load-balancer-controller \
+            --set region="$CLUSTER_REGION" \
+            --set vpcId="$VPC_ID"
+        else
+          echo "Helm release already exists, skipping installation."
+        fi
+      - echo "Waiting for aws-load-balancer-controller pod to be ready..."
+      - kubectl wait --for=condition=Available deployment/aws-load-balancer-controller -n kube-system --timeout=300s
+      - echo "aws-load-balancer-controller is now running. Applying nginx deployment..."
+      - kubectl apply -f nginx/nginx.yaml
 
   post_build:
     commands:
+      - echo "Downloading WSO2 Identity Server..."
       - wget https://github.com/wso2/product-is/releases/download/v7.0.0/wso2is-7.0.0.zip
-      - sudo yum install unzip
-      - unzip wso2is-7.0.0
+      - yum install -y unzip
+      - unzip -q wso2is-7.0.0
       - cp -r wso2is-7.0.0/dbscripts .
-      - sudo dnf install postgresql15.x86_64 postgresql15-server -y
+      - echo "Installing PostgreSQL 15..."
+      - dnf install -y postgresql15.x86_64 postgresql15-server
+      - postgresql-setup --initdb
+      - systemctl enable --now postgresql
+      - echo "Running database setup script..."
       - sh db-population/db.sh
+      - echo "Running keystore setup script..."
       - sh keystore-setup/keystore.sh
       - echo "Verifying deployed resources..."
-      - kubectl get pods -A --kubeconfig /root/.kube/config
-      - kubectl get services -A --kubeconfig /root/.kube/config
+      - kubectl get pods -A
+      - kubectl get services -A
