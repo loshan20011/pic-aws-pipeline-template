@@ -17,7 +17,7 @@ NAMESPACE="wso2is"
 
 # Install Java (which includes keytool)
 echo "Installing Java..."
-sudo yum install -y java-1.8.0-openjdk-devel
+sudo yum install -y java
 
 # Ensure required tools are installed
 if ! command -v keytool &> /dev/null || ! command -v openssl &> /dev/null; then
