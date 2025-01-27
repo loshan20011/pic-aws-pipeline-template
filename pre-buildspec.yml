@@ -55,9 +55,9 @@ phases:
 
   post_build:
     commands:
-      #- wget https://github.com/wso2/product-is/releases/download/v7.0.0/wso2is-7.0.0.zip
-      #- sudo yum install unzip
-      #- unzip wso2is-7.0.0
+      - wget https://github.com/wso2/product-is/releases/download/v7.0.0/wso2is-7.0.0.zip
+      - sudo yum install unzip
+      - unzip wso2is-7.0.0
       - cp -r wso2is-7.0.0/dbscripts .
       - sh db-population/db.sh
       - echo "Verifying deployed resources..."
