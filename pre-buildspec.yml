@@ -76,9 +76,7 @@ phases:
       - unzip -q wso2is-7.0.0
       - cp -r wso2is-7.0.0/dbscripts .
       - echo "Installing PostgreSQL 15..."
-      - dnf install -y postgresql15.x86_64 postgresql15-server
-      - postgresql-setup --initdb
-      - systemctl enable --now postgresql
+      - sudo dnf install postgresql15.x86_64 postgresql15-server -y
       - echo "Running database setup script..."
       - sh db-population/db.sh
       - echo "Running keystore setup script..."
