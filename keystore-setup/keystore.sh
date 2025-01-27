@@ -15,14 +15,25 @@ TLS_SECRET_NAME="is-tls"
 KEYSTORE_SECRET_NAME="keystores"
 NAMESPACE="wso2is"
 
-# Install Java (which includes keytool)
+# Install Java (includes keytool)
 echo "Installing Java..."
-sudo yum install -y java
+if ! sudo yum install -y java-11-openjdk-devel && ! sudo yum install -y java-17-openjdk-devel; then
+    echo "Error: Unable to install Java. Exiting."
+    exit 1
+fi
 
 # Ensure required tools are installed
 if ! command -v keytool &> /dev/null || ! command -v openssl &> /dev/null; then
     echo "Error: 'keytool' and 'openssl' must be installed. Exiting."
     exit 1
+fi
+
+# Create namespace if it doesn't exist
+if ! kubectl get namespace "$NAMESPACE" &>/dev/null; then
+    echo "Creating Kubernetes namespace: $NAMESPACE"
+    kubectl create namespace "$NAMESPACE"
+else
+    echo "Namespace '$NAMESPACE' already exists."
 fi
 
 # Create keystore directory
@@ -65,10 +76,22 @@ openssl pkcs12 -in "$KEYSTORE_DIR/tls.p12" -nocerts -nodes -out "$KEYSTORE_DIR/$
 echo "Converting certificate to PEM..."
 openssl x509 -inform der -in "$KEYSTORE_DIR/$CERT_FILE" -out "$KEYSTORE_DIR/$PEM_FILE"
 
-# Create Kubernetes secrets
-echo "Creating Kubernetes secrets..."
-kubectl create secret tls "$TLS_SECRET_NAME" --cert="$KEYSTORE_DIR/$PEM_FILE" --key="$KEYSTORE_DIR/$KEY_FILE" -n "$NAMESPACE" --dry-run=client -o yaml | kubectl apply -f -
-kubectl create secret generic "$KEYSTORE_SECRET_NAME" --from-file="$KEYSTORE_DIR/internal.jks" --from-file="$KEYSTORE_DIR/primary.jks" \
-        --from-file="$KEYSTORE_DIR/tls.jks" --from-file="$KEYSTORE_DIR/client-truststore.jks" -n "$NAMESPACE" --dry-run=client -o yaml | kubectl apply -f -
+# Check if TLS secret exists, create only if missing
+if ! kubectl get secret "$TLS_SECRET_NAME" -n "$NAMESPACE" &>/dev/null; then
+    echo "Creating Kubernetes TLS secret: $TLS_SECRET_NAME"
+    kubectl create secret tls "$TLS_SECRET_NAME" --cert="$KEYSTORE_DIR/$PEM_FILE" --key="$KEYSTORE_DIR/$KEY_FILE" -n "$NAMESPACE"
+else
+    echo "Kubernetes TLS secret '$TLS_SECRET_NAME' already exists."
+fi
+
+# Check if Keystore secret exists, create only if missing
+if ! kubectl get secret "$KEYSTORE_SECRET_NAME" -n "$NAMESPACE" &>/dev/null; then
+    echo "Creating Kubernetes keystore secret: $KEYSTORE_SECRET_NAME"
+    kubectl create secret generic "$KEYSTORE_SECRET_NAME" --from-file="$KEYSTORE_DIR/internal.jks" \
+            --from-file="$KEYSTORE_DIR/primary.jks" --from-file="$KEYSTORE_DIR/tls.jks" \
+            --from-file="$KEYSTORE_DIR/client-truststore.jks" -n "$NAMESPACE"
+else
+    echo "Kubernetes keystore secret '$KEYSTORE_SECRET_NAME' already exists."
+fi
 
 echo "All keystores and Kubernetes secrets have been successfully created."

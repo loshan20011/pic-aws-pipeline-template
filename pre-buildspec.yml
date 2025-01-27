@@ -61,7 +61,6 @@ phases:
       - cp -r wso2is-7.0.0/dbscripts .
       - sudo dnf install postgresql15.x86_64 postgresql15-server -y
       - sh db-population/db.sh
-      - kubectl create ns wso2is
       - sh keystore-setup/keystore.sh
       - echo "Verifying deployed resources..."
       - kubectl get pods -A --kubeconfig /root/.kube/config
