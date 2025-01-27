@@ -14,13 +14,13 @@ create_database() {
     local DB_NAME=$1
     echo "Checking if database '$DB_NAME' exists..."
 
-    DB_EXISTS=$(psql --host="$RDS_HOST" --port="5432" --username="$MASTER_USERNAME" --no-password --dbname="$MASTER_DB" -tAc "SELECT 1 FROM pg_database WHERE datname='$DB_NAME';")
+    DB_EXISTS=$(psql -q --host="$RDS_HOST" --port="5432" --username="$MASTER_USERNAME" --no-password --dbname="$MASTER_DB" -tAc "SELECT 1 FROM pg_database WHERE datname='$DB_NAME';")
 
     if [ "$DB_EXISTS" == "1" ]; then
         echo "Database '$DB_NAME' already exists, skipping creation."
     else
         echo "Creating database: $DB_NAME"
-        psql --host="$RDS_HOST" --port="5432" --username="$MASTER_USERNAME" --no-password --dbname="$MASTER_DB" -c "CREATE DATABASE $DB_NAME;"
+        psql -q --host="$RDS_HOST" --port="5432" --username="$MASTER_USERNAME" --no-password --dbname="$MASTER_DB" -c "CREATE DATABASE $DB_NAME;"
         echo "Database '$DB_NAME' created successfully."
     fi
 }
@@ -34,7 +34,7 @@ populate_database() {
     for SQL_FILE in $SQL_FILES; do
         if [ -f "$SQL_FILE" ]; then
             echo "Applying SQL file: $SQL_FILE"
-            psql --host="$RDS_HOST" --port="5432" --no-password --username="$MASTER_USERNAME" --dbname="$DB_NAME" -f "$SQL_FILE"
+            psql -q --host="$RDS_HOST" --port="5432" --no-password --username="$MASTER_USERNAME" --dbname="$DB_NAME" -f "$SQL_FILE"
         else
             echo "Warning: SQL file not found: $SQL_FILE"
         fi
@@ -48,4 +48,4 @@ for DB_NAME in "${!DATABASES[@]}"; do
     populate_database "$DB_NAME"
 done
 
-echo "✅ All databases are created and populated successfully!"
+echo "All databases are created and populated successfully!"
