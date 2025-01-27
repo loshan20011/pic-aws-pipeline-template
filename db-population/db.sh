@@ -34,7 +34,7 @@ populate_database() {
     for SQL_FILE in $SQL_FILES; do
         if [ -f "$SQL_FILE" ]; then
             echo "Applying SQL file: $SQL_FILE"
-            PGPASSWORD="$DB_PASSWORD" psql --host="$RDS_HOST" --port="5432" --username="$MASTER_USERNAME" --dbname="$DB_NAME" -f "$SQL_FILE"
+            PGPASSWORD="$DB_PASSWORD" psql --host="$RDS_HOST" --port="5432" --no-password --username="$MASTER_USERNAME" --dbname="$DB_NAME" -f "$SQL_FILE"
         else
             echo "Warning: SQL file not found: $SQL_FILE"
         fi
